@@ -122,7 +122,7 @@ st.markdown("#### 3. Volume de Veículos por Unidade Federativa (UF) e Ano")
 fig_box_uf = px.box(
     df_dados,
     x='Unidade Federativa',
-    y='Total veiculos',
+    y='Total veículos',
     title='Distribuição do Volume de Veículos por UF',
     notched=True # Adiciona recortes para indicar diferenças estatísticas (aproximadas)
 )
