@@ -122,14 +122,14 @@ st.markdown("#### 3. Volume de Veículos por Unidade Federativa (UF) e Ano")
 fig_box_uf = px.box(
     df_dados,
     x='Unidade Federativa',
-    y='Volume veiculos',
+    y='Total veiculos',
     title='Distribuição do Volume de Veículos por UF',
     notched=True # Adiciona recortes para indicar diferenças estatísticas (aproximadas)
 )
 st.plotly_chart(fig_box_uf, use_container_width=True)
 
 # Gráfico de Linha para Tendência Temporal (Volume Médio por Ano)
-df_trend = df_dados.groupby('Ano')['Total veículos'].mean().reset_index()
+df_trend = df_dados.groupby('Ano')['Total veículos'].mean().reset_index().rename
 fig_line_year = px.line(
     df_trend,
     x='Ano',
