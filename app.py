@@ -129,7 +129,7 @@ fig_box_uf = px.box(
 st.plotly_chart(fig_box_uf, use_container_width=True)
 
 # Gráfico de Linha para Tendência Temporal (Volume Médio por Ano)
-df_trend = df_dados.groupby('Ano')['Total veículos'].mean().reset_index().rename
+df_trend = df_dados.groupby('Ano')['Total veículos'].mean().reset_index()
 fig_line_year = px.line(
     df_trend,
     x='Ano',
