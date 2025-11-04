@@ -92,7 +92,7 @@ st.info("A distribuição da variável alvo é crucial para a modelagem bayesian
 
 fig_hist = px.histogram(
     df_dados, 
-    x='volume_veiculos', 
+    x='Total veículos', 
     nbins=50, 
     title='Histograma da Variável Alvo: Volume de Veículos'
 )
@@ -105,9 +105,9 @@ st.markdown("#### 2. Relação entre Volume de Veículos e PIB")
 
 fig_scatter = px.scatter(
     df_dados, 
-    x='pib_valor', 
-    y='volume_veiculos', 
-    color='unidade_federativa', # Colore pelo estado para adicionar contexto
+    x='Valor PIB', 
+    y='Total veículos', 
+    color='Unidade Federativa', # Colore pelo estado para adicionar contexto
     opacity=0.6,
     log_x=True, # Aplica escala logarítmica ao PIB, pois a distribuição costuma ser assimétrica
     title='Volume de Veículos vs. Valor do PIB (Por UF)'
@@ -121,19 +121,19 @@ st.markdown("#### 3. Volume de Veículos por Unidade Federativa (UF) e Ano")
 # Gráfico de Boxplot para Volume por UF
 fig_box_uf = px.box(
     df_dados,
-    x='unidade_federativa',
-    y='volume_veiculos',
+    x='Unidade Federativa',
+    y='Volume veiculos',
     title='Distribuição do Volume de Veículos por UF',
     notched=True # Adiciona recortes para indicar diferenças estatísticas (aproximadas)
 )
 st.plotly_chart(fig_box_uf, use_container_width=True)
 
 # Gráfico de Linha para Tendência Temporal (Volume Médio por Ano)
-df_trend = df_dados.groupby('ano')['volume_veiculos'].mean().reset_index()
+df_trend = df_dados.groupby('Ano')['Total veículos'].mean().reset_index()
 fig_line_year = px.line(
     df_trend,
-    x='ano',
-    y='volume_veiculos',
+    x='Ano',
+    y='Total veículos',
     title='Tendência do Volume Médio de Veículos ao Longo dos Anos',
     markers=True
 )
