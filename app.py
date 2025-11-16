@@ -3,8 +3,11 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+import numpy as np
 import os
+import arviz as az
 from dotenv import load_dotenv
+from scipy.stats import gaussian_kde # Para estimar a densidade
 
 # --- Configuração de Credenciais ---
 
@@ -140,5 +143,127 @@ fig_line_year = px.line(
 st.plotly_chart(fig_line_year, use_container_width=True)
 
 # --- Fim da Seção EDA ---
+df_transformado = df_dados.copy()
+
+df_transformado['log_Total_veículos'] = np.log(df_transformado['Total veículos'])
+df_transformado['log_Valor_PIB'] = np.log(df_transformado['Valor PIB'])
 
 # st.markdown("## 🔮 Inferência Bayesiana e Predição (Próxima Etapa)")
+import pymc as pm
+
+# 1. Aplicar a transformação log nos dados antes de criar o modelo
+y_obs = df_transformado['log_Total_veículos']
+X_obs = df_transformado['log_Valor_PIB']
+
+@st.cache_resource
+def rodar_modelo_bayesiano(y_obs, X_obs):
+    """Função para construir e rodar o modelo PyMC."""
+    with pm.Model() as modelo_bayesiano:
+            # Priores (exemplo)
+        alfa = pm.Normal('alfa', mu=0, sigma=10)
+        beta = pm.Normal('beta', mu=0, sigma=2)
+        sigma = pm.HalfCauchy('sigma', beta=1)
+
+        # Modelo Linear
+        mu = alfa + beta * X_obs
+        # Amostragem
+        traço = pm.sample(2000, tune=1000, return_inferencedata=True)
+        return traço
+
+# Carregamento e transformação dos dados (pode ser feito com st.cache_data)
+# ...
+
+# 3. Rodar o modelo e obter o traço (o Streamlit só roda a amostragem uma vez)
+traco_cacheado = rodar_modelo_bayesiano(y_obs, X_obs)
+# Exemplo de visualização no Streamlit
+st.header("Análise Bayesiana dos Resultados")
+def plot_trace_direct_plotly(traco, param_name):
+    """
+    Cria um Gráfico de Traço (Trace Plot) usando Plotly.
+    param_name: nome do parâmetro (string, ex: 'beta')
+    """
+    posterior_data = traco.posterior[param_name]
+    n_chains = posterior_data.sizes['chain']
+    n_draws = posterior_data.sizes['draw']
+    
+    fig = go.Figure()
+    
+    for chain in range(n_chains):
+        # Seleciona as amostras para a cadeia atual
+        samples = posterior_data.sel(chain=chain).values.flatten()
+        
+        fig.add_trace(go.Scatter(
+            x=np.arange(n_draws), 
+            y=samples,
+            mode='lines',
+            name=f'Cadeia {chain + 1}',
+            line={'width': 1}
+        ))
+        
+    fig.update_layout(
+        title=f'Traço MCMC para o Parâmetro: {param_name}',
+        xaxis_title='Passo da Amostragem',
+        yaxis_title='Valor do Parâmetro',
+        height=400,
+        hovermode="x unified"
+    )
+    return fig
+
+# Exemplo de Uso no Streamlit:
+st.header("📈 Convergência do Parâmetro Beta")
+fig_trace_conv_beta = plot_trace_direct_plotly(traco_cacheado, 'beta')
+st.plotly_chart(fig_trace_conv_beta, use_container_width=True)
+
+# Exemplo de Uso no Streamlit:
+st.header("📈 Convergência do Parâmetro Alfa")
+fig_trace_conv_alfa = plot_trace_direct_plotly(traco_cacheado, 'alfa')
+st.plotly_chart(fig_trace_conv_alfa, use_container_width=True)
+
+def plot_posterior_direct_plotly(traco, param_name):
+    """
+    Cria um Gráfico de Densidade Posterior (KDE) usando Plotly.
+    param_name: nome do parâmetro (string, ex: 'beta')
+    """
+    # Combina todas as amostras (cadeias e passos) em um único array
+    all_samples = traco.posterior[param_name].values.flatten()
+    
+    # Usa Plotly Express para criar um Histograma e estimativa de Densidade (KDE)
+    fig = px.histogram(
+        all_samples, 
+        nbins=50, 
+        marginal="box", # Adiciona um box plot marginal para resumo
+        histnorm='probability density', # Normaliza para densidade
+        title=f'Distribuição a Posteriori do Parâmetro: {param_name}'
+    )
+    
+    # Opcional: Adicionar a linha KDE (se não usar o marginal do px)
+    # kde = gaussian_kde(all_samples)
+    # x_vals = np.linspace(all_samples.min(), all_samples.max(), 500)
+    # fig.add_trace(go.Scatter(x=x_vals, y=kde(x_vals), mode='lines', name='KDE', line={'color': 'red'}))
+    
+    # Adicionar a linha da Média/Mediana (estimativa pontual)
+    median_val = np.median(all_samples)
+    fig.add_vline(
+        x=median_val, 
+        line_dash="dash", 
+        line_color="red",
+        annotation_text=f"Mediana: {median_val:.3f}", 
+        annotation_position="top right"
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        yaxis_title="Densidade de Probabilidade",
+        xaxis_title=f"Valor de {param_name}",
+        height=400
+    )
+    return fig
+
+# Exemplo de Uso no Streamlit:
+st.header("🔬 Densidade Posterior do Parâmetro Beta")
+fig_posterior_dens_beta = plot_posterior_direct_plotly(traco_cacheado, 'beta')
+st.plotly_chart(fig_posterior_dens_beta, use_container_width=True)
+
+st.header("🔬 Densidade Posterior do Parâmetro Alfa")
+fig_posterior_dens_alfa = plot_posterior_direct_plotly(traco_cacheado, 'alfa')
+st.plotly_chart(fig_posterior_dens_alfa, use_container_width=True)

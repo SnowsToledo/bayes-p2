@@ -6,14 +6,15 @@ authors = [
     {name = "ToledoSnows",email = "felipe.toledo.neves@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "pymc (>=5.26.1,<6.0.0)",
     "streamlit (>=1.51.0,<2.0.0)",
     "psycopg2-binary (>=2.9.11,<3.0.0)",
     "dotenv (>=0.9.9,<0.10.0)",
     "plotly (>=6.3.1,<7.0.0)",
-    "pandas (>=2.3.3,<3.0.0)"
+    "pandas (>=2.3.3,<3.0.0)",
+    "scipy (>=1.16.3,<2.0.0)"
 ]
 
 
