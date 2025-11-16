@@ -8,6 +8,9 @@ import os
 import arviz as az
 from dotenv import load_dotenv
 from scipy.stats import gaussian_kde # Para estimar a densidade
+import pymc as pm
+import plotly.express as px
+import plotly.graph_objects as go # Usaremos para um gráfico mais detalhado
 
 # --- Configuração de Credenciais ---
 
@@ -81,10 +84,7 @@ df_dados = get_data_from_db()
 st.subheader("Amostra dos Dados Carregados")
 st.dataframe(df_dados.head())
 
-# st.write(f"Total de linhas carregadas: {len(df_dados)}")
-
-import plotly.express as px
-import plotly.graph_objects as go # Usaremos para um gráfico mais detalhado
+st.write(f"Total de linhas carregadas: {len(df_dados)}")
 
 # --- Análise Exploratória de Dados (EDA) ---
 st.subheader("📊 Análise Exploratória de Dados (EDA)")
@@ -147,13 +147,18 @@ df_transformado = df_dados.copy()
 
 df_transformado['log_Total_veículos'] = np.log(df_transformado['Total veículos'])
 df_transformado['log_Valor_PIB'] = np.log(df_transformado['Valor PIB'])
+df_transformado['mun_numerico'] = df_transformado['Município'].astype('category').cat.codes
+
 
 # st.markdown("## 🔮 Inferência Bayesiana e Predição (Próxima Etapa)")
-import pymc as pm
+
 
 # 1. Aplicar a transformação log nos dados antes de criar o modelo
 y_obs = df_transformado['log_Total_veículos']
-X_obs = df_transformado['log_Valor_PIB']
+X_obs_1 = df_transformado['log_Valor_PIB']
+X_obs_2 = df_transformado['mun_numerico'].values
+N_Municipios = df_transformado['mun_numerico'].nunique()
+mun_names = df_transformado['Município'].unique().tolist()
 
 @st.cache_resource
 def rodar_modelo_bayesiano(y_obs, X_obs):
@@ -167,14 +172,62 @@ def rodar_modelo_bayesiano(y_obs, X_obs):
         # Modelo Linear
         mu = alfa + beta * X_obs
         # Amostragem
-        traço = pm.sample(2000, tune=1000, return_inferencedata=True)
-        return traço
+        traco = pm.sample(2000, tune=1000, return_inferencedata=True)
+        return traco
+
+@st.cache_resource
+def rodar_modelo_bayesiano_multivariado(y_obs, X_obs_1, X_obs_2, N_Municipios):
+    # 2. Definição do Modelo Hierárquico no PyMC
+    with pm.Model() as hierarchical_model:
+        
+        # ---- Hiper-priors (Nível 2) ----
+        
+        # Média e desvio padrão globais para os interceptos
+        mu_alpha = pm.Normal("mu_alpha", mu=0, sigma=10)
+        tau_alpha = pm.HalfCauchy("tau_alpha", beta=1)
+        
+        # Distribuição dos Interceptos de cada Município
+        # pm.Normal.dist é uma 'distribuição de distribuição'
+        alpha = pm.Normal("alpha", mu=mu_alpha, sigma=tau_alpha, shape=N_Municipios)
+        
+        # Coeficiente do PIB (Global, não-hierárquico neste modelo)
+        beta_PIB = pm.Normal("beta_PIB", mu=0, sigma=10)
+        
+        # Desvio padrão residual (Global)
+        sigma = pm.HalfCauchy("sigma", beta=1)
+        
+        # ---- Média Linear (Nível 1) ----
+        
+        # O intercepto é específico para cada município (alpha[mun_idx_data])
+        # O coeficiente do PIB é o mesmo para todos (beta_PIB)
+        mu = alpha[X_obs_2] + beta_PIB * X_obs_1
+        
+        # ---- Likelihood (Verossimilhança) ----
+        
+        # Os dados observados
+        Y_obs = pm.Normal("Y_obs", mu=mu, sigma=sigma, observed=y_obs)
+        
+        # 3. Inferência (Amostragem MCMC)
+        st.write("Rodando Inferência Bayesiana (MCMC)...")
+        traco = pm.sample(2000, tune=1000, cores=2, return_idata=True)
+    return traco
+
 
 # Carregamento e transformação dos dados (pode ser feito com st.cache_data)
 # ...
 
 # 3. Rodar o modelo e obter o traço (o Streamlit só roda a amostragem uma vez)
-traco_cacheado = rodar_modelo_bayesiano(y_obs, X_obs)
+traco_cacheado = rodar_modelo_bayesiano(y_obs, X_obs_1)
+
+traco_cacheado_multivariado = rodar_modelo_bayesiano_multivariado(y_obs, X_obs_1, X_obs_2, N_Municipios)
+
+
+# 4. Análise dos Resultados (Exemplo)
+# Sumário estatístico dos parâmetros
+summary = pm.summary(traco_cacheado_multivariado, var_names=['mu_alpha', 'tau_alpha', 'beta_PIB'])
+print("\n--- Sumário de Parâmetros Globais ---")
+print(summary)
+
 # Exemplo de visualização no Streamlit
 st.header("Análise Bayesiana dos Resultados")
 def plot_trace_direct_plotly(traco, param_name):
@@ -267,3 +320,115 @@ st.plotly_chart(fig_posterior_dens_beta, use_container_width=True)
 st.header("🔬 Densidade Posterior do Parâmetro Alfa")
 fig_posterior_dens_alfa = plot_posterior_direct_plotly(traco_cacheado, 'alfa')
 st.plotly_chart(fig_posterior_dens_alfa, use_container_width=True)
+
+def hdi_manual(posterior_samples, hdi_prob=0.95):
+    """Calcula o Highest Density Interval (HDI) para amostras."""
+    samples = np.sort(posterior_samples)
+    n = len(samples)
+    interval_size = int(np.floor(n * hdi_prob))
+    if interval_size == 0:
+        return samples[0], samples[-1]
+
+    intervals = samples[interval_size:] - samples[:n - interval_size]
+    min_idx = np.argmin(intervals)
+    return samples[min_idx], samples[min_idx + interval_size]
+
+# ====================================================================
+# FUNÇÃO PLOTLY SEM ARVIZ
+# ====================================================================
+
+def plot_intercepts_plotly_manual(trace, mun_names):
+    """Calcula a média e HDI dos interceptos e plota com Plotly."""
+    
+    # 1. Extrair amostras dos interceptos (shape: chains, draws, N_MUN)
+    alpha_samples = trace.posterior['alpha'].values.reshape(-1, len(mun_names))
+    
+    results = []
+    
+    # 2. Iterar sobre cada município para calcular Média e HDI
+    for i, mun_name in enumerate(mun_names):
+        samples_i = alpha_samples[:, i]
+        
+        # Cálculo Manual da Média e HDI
+        mean = np.mean(samples_i)
+        hdi_lower, hdi_upper = hdi_manual(samples_i, hdi_prob=0.95)
+        
+        results.append({
+            'Município': mun_name,
+            'mean': mean,
+            'hdi_2.5%': hdi_lower,
+            'hdi_97.5%': hdi_upper
+        })
+
+    hdi_df = pd.DataFrame(results)
+    
+    # 3. Calcular a Média Global dos Interceptos (mu_alpha)
+    mu_alpha_mean = trace.posterior['mu_alpha'].mean().item()
+    
+    # 4. Criar o gráfico Plotly
+    fig = go.Figure()
+    
+    # Adicionar as barras de erro (Intervalo de Credibilidade de 95%)
+    fig.add_trace(go.Scatter(
+        x=hdi_df['mean'],
+        y=hdi_df['Município'],
+        mode='markers',
+        error_x=dict(
+            type='data',
+            symmetric=False,
+            # Calcula a diferença do valor da Média para os limites do HDI
+            array=hdi_df['hdi_97.5%'] - hdi_df['mean'],
+            arrayminus=hdi_df['mean'] - hdi_df['hdi_2.5%'],
+            thickness=1.5,
+            width=5
+        ),
+        marker=dict(size=8, color='darkblue'),
+        name='Média Posterior com HDI 95%'
+    ))
+    
+    # Adicionar a linha da Média Global (μ_α)
+    fig.add_shape(
+        type='line',
+        x0=mu_alpha_mean,
+        x1=mu_alpha_mean,
+        y0=-0.5,
+        y1=len(mun_names) - 0.5,
+        line=dict(color='red', width=2, dash='dash'),
+        name=f'Média Global ({mu_alpha_mean:.2f})'
+    )
+    
+    # 5. Configurar Layout
+    fig.update_layout(
+        title='Distribuição Posterior dos Interceptos por Município (αⱼ)',
+        xaxis_title='Intercepto (Volume Base de Veículos)',
+        yaxis_title='',
+        height=700,
+        showlegend=True
+    )
+    
+    return fig
+
+# --- STREAMLIT APP ---
+
+st.title("🚗 Variação Intermunicipal no Volume de Veículos (Modelo Hierárquico)")
+
+st.subheader("1. Coeficiente Global do PIB")
+# Cálculo manual da média do beta_PIB
+beta_pib_mean = traco_cacheado_multivariado.posterior['beta_PIB'].mean().item()
+st.metric(label="Impacto Médio do PIB (β)", value=f"{beta_pib_mean:.4f}")
+st.markdown(f"> O Volume de Veículos aumenta em **{beta_pib_mean:.4f}** unidades, em média, para cada unidade de aumento no PIB.")
+
+st.subheader("2. Efeitos Aleatórios por Município (αⱼ) - Visualização Plotly")
+
+# Chama a função para gerar o gráfico (usando cálculo manual)
+fig_intercepts = plot_intercepts_plotly_manual(traco_cacheado_multivariado, mun_names)
+
+# Exibe o gráfico no Streamlit
+st.plotly_chart(fig_intercepts, use_container_width=True)
+
+st.markdown("""
+### Análise do Gráfico:
+* **Ponto Azul:** Média Posterior do **Intercepto ($\alpha_j$)** para cada município.
+* **Barra Horizontal:** **Intervalo de Credibilidade de 95% (HDI)**, representando a incerteza.
+* **Linha Tracejada Vermelha:** A **Média Global dos Interceptos ($\mu_{\alpha}$)**, que serve como referência para o grupo.
+""")
