@@ -426,9 +426,129 @@ fig_intercepts = plot_intercepts_plotly_manual(traco_cacheado_multivariado, mun_
 # Exibe o gráfico no Streamlit
 st.plotly_chart(fig_intercepts, use_container_width=True)
 
-st.markdown("""
+st.markdown(r"""
 ### Análise do Gráfico:
 * **Ponto Azul:** Média Posterior do **Intercepto ($\alpha_j$)** para cada município.
 * **Barra Horizontal:** **Intervalo de Credibilidade de 95% (HDI)**, representando a incerteza.
 * **Linha Tracejada Vermelha:** A **Média Global dos Interceptos ($\mu_{\alpha}$)**, que serve como referência para o grupo.
 """)
+
+
+def plot_predictions(trace, df, selected_mun_name):
+    """
+    Gera as predições e plota o resultado com Plotly, comparando a
+    regressão individual com a média global.
+    """
+    
+    # 1. Definir o range de PIB para as predições
+    pib_range = np.linspace(df['PIB'].min(), df['PIB'].max(), 100)
+    
+    # 2. Extrair amostras dos parâmetros
+    alpha_samples = trace.posterior['alpha'].values.reshape(-1, N_MUN)
+    mu_alpha_samples = trace.posterior['mu_alpha'].values.flatten()
+    beta_samples = trace.posterior['beta_PIB'].values.flatten()
+    
+    # 3. Predição Global (Usando a Média Global dos Interceptos: mu_alpha)
+    # Calcule a linha de regressão para cada amostra da MCMC
+    global_predictions = np.outer(pib_range, beta_samples) + mu_alpha_samples
+    
+    # Calcule a Média e o HDI da Predição Global
+    global_mean = np.mean(global_predictions, axis=1)
+    global_hdi_lower = np.array([hdi_manual(global_predictions[i, :])[0] for i in range(len(pib_range))])
+    global_hdi_upper = np.array([hdi_manual(global_predictions[i, :])[1] for i in range(len(pib_range))])
+
+    # 4. Predição Individual do Município Selecionado
+    selected_mun_idx = df[df['Município_nome'] == selected_mun_name]['Município_idx'].iloc[0]
+    
+    # Extrai as amostras de alpha específicas para o município selecionado
+    mun_alpha_samples = alpha_samples[:, selected_mun_idx]
+    
+    # Calcule a linha de regressão para cada amostra da MCMC (Individual)
+    mun_predictions = np.outer(pib_range, beta_samples) + mun_alpha_samples
+    
+    # Calcule a Média e o HDI da Predição Individual
+    mun_mean = np.mean(mun_predictions, axis=1)
+    mun_hdi_lower = np.array([hdi_manual(mun_predictions[i, :])[0] for i in range(len(pib_range))])
+    mun_hdi_upper = np.array([hdi_manual(mun_predictions[i, :])[1] for i in range(len(pib_range))])
+
+    # 5. Criação do Plotly Figure
+    fig = go.Figure()
+
+    # --- Plot da Predição Global (Referência) ---
+    
+    # Intervalo de Credibilidade (Sombra/Faixa) Global
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([pib_range, pib_range[::-1]]), # Liga x0 com x1
+        y=np.concatenate([global_hdi_upper, global_hdi_lower[::-1]]), # Liga y_upper com y_lower
+        fill='toself',
+        fillcolor='rgba(255, 0, 0, 0.1)',
+        line=dict(color='rgba(255, 255, 255, 0)'),
+        name='HDI 95% Global'
+    ))
+    
+    # Linha Média Global
+    fig.add_trace(go.Scatter(
+        x=pib_range, 
+        y=global_mean, 
+        mode='lines', 
+        line=dict(color='red', dash='dash'),
+        name='Média Global'
+    ))
+
+    # --- Plot da Predição Individual (Município Selecionado) ---
+    
+    # Intervalo de Credibilidade (Sombra/Faixa) Individual
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([pib_range, pib_range[::-1]]),
+        y=np.concatenate([mun_hdi_upper, mun_hdi_lower[::-1]]),
+        fill='toself',
+        fillcolor='rgba(0, 0, 255, 0.15)',
+        line=dict(color='rgba(255, 255, 255, 0)'),
+        name=f'HDI 95% {selected_mun_name}'
+    ))
+    
+    # Linha Média Individual
+    fig.add_trace(go.Scatter(
+        x=pib_range, 
+        y=mun_mean, 
+        mode='lines', 
+        line=dict(color='blue', width=3),
+        name=f'Predição para {selected_mun_name}'
+    ))
+    
+    # --- Configurações do Layout ---
+    
+    fig.update_layout(
+        title=f'Predição do Volume de Veículos vs. PIB: {selected_mun_name}',
+        xaxis_title='PIB Municipal',
+        yaxis_title='Volume de Veículos (Predito)',
+        hovermode='x unified'
+    )
+    
+    return fig
+
+# ====================================================================
+# APP STREAMLIT
+# ====================================================================
+
+st.title("🔮 Predições do Modelo Hierárquico Bayesiano")
+st.markdown("Compare a previsão para o município selecionado com o efeito médio global.")
+
+# Seletor de Município
+unique_mun_names = sorted(df_transformado['Município_nome'].unique())
+selected_mun = st.selectbox(
+    "Selecione um Município para a Predição:",
+    unique_mun_names
+)
+
+if selected_mun:
+    # Chama a função de plotagem e predição
+    fig_predictions = plot_predictions(traco_cacheado_multivariado, df_transformado, selected_mun)
+    st.plotly_chart(fig_predictions, use_container_width=True)
+
+    st.subheader("Interpretação da Predição")
+    st.markdown(r"""
+    * A **Linha Azul** e a **Faixa Azul** representam a **predição específica** para o município selecionado, incorporando seu **Intercepto ($\alpha_j$)** único.
+    * A **Linha Tracejada Vermelha** e a **Faixa Vermelha** representam a **Média Global ($\mu_{\alpha}$)** do grupo, ignorando a identidade individual do município.
+    * **HDI 95% (Faixa Sombreada):** Indica que há 95% de chance de o valor real do Volume de Veículos cair dentro dessa faixa, para um dado valor de PIB.
+    """)
