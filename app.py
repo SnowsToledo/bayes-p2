@@ -535,7 +535,7 @@ st.title("🔮 Predições do Modelo Hierárquico Bayesiano")
 st.markdown("Compare a previsão para o município selecionado com o efeito médio global.")
 
 # Seletor de Município
-unique_mun_names = sorted(df_transformado['Município_nome'].unique())
+unique_mun_names = sorted(df_transformado['Município'].unique())
 selected_mun = st.selectbox(
     "Selecione um Município para a Predição:",
     unique_mun_names
