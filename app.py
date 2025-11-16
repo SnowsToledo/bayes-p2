@@ -441,7 +441,7 @@ def plot_predictions(trace, df, selected_mun_name):
     """
     
     # 1. Definir o range de PIB para as predições
-    pib_range = np.linspace(df['PIB'].min(), df['PIB'].max(), 100)
+    pib_range = np.linspace(df['log_Valor_PIB'].min(), df['log_Valor_PIB'].max(), 100)
     
     # 2. Extrair amostras dos parâmetros
     alpha_samples = trace.posterior['alpha'].values.reshape(-1, N_MUN)
@@ -458,7 +458,7 @@ def plot_predictions(trace, df, selected_mun_name):
     global_hdi_upper = np.array([hdi_manual(global_predictions[i, :])[1] for i in range(len(pib_range))])
 
     # 4. Predição Individual do Município Selecionado
-    selected_mun_idx = df[df['Município_nome'] == selected_mun_name]['Município_idx'].iloc[0]
+    selected_mun_idx = df_transformado[df_transformado['Município'] == selected_mun_name]['mun_numerico'].iloc[0]
     
     # Extrai as amostras de alpha específicas para o município selecionado
     mun_alpha_samples = alpha_samples[:, selected_mun_idx]
