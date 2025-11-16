@@ -444,7 +444,7 @@ def plot_predictions(trace, df, selected_mun_name):
     pib_range = np.linspace(df['log_Valor_PIB'].min(), df['log_Valor_PIB'].max(), 100)
     
     # 2. Extrair amostras dos parâmetros
-    alpha_samples = trace.posterior['alpha'].values.reshape(-1, N_MUN)
+    alpha_samples = trace.posterior['alpha'].values.reshape(-1, N_Municipios)
     mu_alpha_samples = trace.posterior['mu_alpha'].values.flatten()
     beta_samples = trace.posterior['beta_PIB'].values.flatten()
     
