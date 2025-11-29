@@ -222,26 +222,26 @@ traco_cacheado = rodar_modelo_bayesiano(y_obs, X_obs_1)
 traco_cacheado_multivariado = rodar_modelo_bayesiano_multivariado(y_obs, X_obs_1, X_obs_2, N_Municipios)
 st.header("Análise Bayesiana")
 
-st.write("""**Modelo Bayesiano escolhido**: Regressão Linear Hierárquica Bayesiana com Interceptos Variáveis (Efeitos Aleatórios).\n
-         **Justificativa**: \n
+st.write(r"""**Modelo Bayesiano escolhido**: Regressão Linear Hierárquica Bayesiana com Interceptos Variáveis (Efeitos Aleatórios).
+         **Justificativa**: 
          - Estrutura Agrupada dos Dados: Os dados de PIB e Volume de Veículos estão agrupados por Município. Ignorar essa estrutura (usando uma Regressão Linear Simples) violaria a suposição de independência das observações, pois municípios que pertencem ao mesmo estado ou região podem ter características de tráfego mais similares entre si.
          - Controle de Heterogeneidade Não Observada (Efeito do Município): O volume base de veículos pode ser influenciado por fatores que não estão no modelo (ex: ser capital, estar em uma rota comercial principal, políticas de transporte, topografia). O intercepto variável, $\alpha_j$, absorve essas diferenças de "nível" para cada município $j$, sem a necessidade de incluir inúmeras variáveis dummy na regressão.
          - "Pooling" de Informação: O mecanismo hierárquico permite que municípios com poucos dados ("pequenos") se beneficiem da informação dos municípios com muitos dados ("grandes"). Isso leva a estimativas ($\alpha_j$) mais estáveis e menos extremas, um fenômeno conhecido como shrinkage (encolhimento).
          - Quantificação de Incerteza: A abordagem Bayesiana fornece uma distribuição completa (Posteriori) para os parâmetros, permitindo a quantificação da incerteza nas estimativas de forma mais intuitiva do que as estatísticas frequentistas (Intervalos de Credibilidade vs. Intervalos de Confiança).
-         **Modelo Estatístico**:\n
-         O modelo estatístico hierárquico é definido em dois níveis:\n
-         Nível 1: Modelo de Dados (Likelihood)\n
-         Define a relação entre o Volume de Veículos ($Y$) e o PIB ($X$) para o município $j$ na observação $i$:\n
-         $$Y_{ij} \sim \mathcal{N}(\mu_{ij}, \sigma^2)$$\n
-         $$\mu_{ij} = \alpha_j + \beta \cdot \text{PIB}_{ij}$$\n
-         - $Y_{ij}$: Volume de Veículos observado.\n
-         - $\text{PIB}_{ij}$: Produto Interno Bruto (PIB) municipal.\n
-         - $\sigma$: Desvio padrão (incerteza residual), assumido comum para todos os municípios.\n
-         - $\alpha_j$: Intercepto (Efeito Aleatório) específico do Município $j$.\n
-         - $\beta$: Coeficiente de Regressão, assumido fixo (igual) para todos os municípios.\n
-         Nível 2: Modelo Hierárquico (Priors/Hiper-Priors)\n
+         **Modelo Estatístico**:
+         O modelo estatístico hierárquico é definido em dois níveis:
+         Nível 1: Modelo de Dados (Likelihood)
+         Define a relação entre o Volume de Veículos ($Y$) e o PIB ($X$) para o município $j$ na observação $i$:
+         $$Y_{ij} \sim \mathcal{N}(\mu_{ij}, \sigma^2)$$
+         $$\mu_{ij} = \alpha_j + \beta \cdot \text{PIB}_{ij}$$
+         - $Y_{ij}$: Volume de Veículos observado.
+         - $\text{PIB}_{ij}$: Produto Interno Bruto (PIB) municipal.
+         - $\sigma$: Desvio padrão (incerteza residual), assumido comum para todos os municípios.
+         - $\alpha_j$: Intercepto (Efeito Aleatório) específico do Município $j$.
+         - $\beta$: Coeficiente de Regressão, assumido fixo (igual) para todos os municípios.
+         Nível 2: Modelo Hierárquico (Priors/Hiper-Priors)
          Define como os parâmetros do Nível 1 estão distribuídos:
-         - Interceptos (Efeitos Aleatórios): Os interceptos de cada município são modelados como vindos de uma distribuição Normal comum:\n
+         - Interceptos (Efeitos Aleatórios): Os interceptos de cada município são modelados como vindos de uma distribuição Normal comum:
          $$\alpha_j \sim \mathcal{N}(\mu_{\alpha}, \tau^2)$$
 """)
 
@@ -285,11 +285,11 @@ def plot_trace_direct_plotly(traco, param_name):
     )
     return fig
 
-st.write("""
-    **Distribuições A Priori (Priors)**\n
+st.write(r"""
+    **Distribuições A Priori (Priors)**
     Os priors selecionados são considerados Priors Fracamente Informativos para permitir que os dados (Likelihood) dominem a inferência, ao mesmo tempo que evitam distribuições problemáticas (como a Uniforme sobre um domínio infinito).
-         1. $\beta$ e $\mu_{\alpha} \sim \mathcal{N}(0, 10)$:\n
-         - Justificativa: A Normal com média zero e desvio padrão 10 é uma escolha padrão para coeficientes de regressão. Ela é centrada em zero (nenhum efeito a priori) e possui desvio padrão grande o suficiente para cobrir um vasto intervalo de valores plausíveis para o coeficiente e a média dos interceptos.\n
+         1. $\beta$ e $\mu_{\alpha} \sim \mathcal{N}(0, 10)$:
+         - Justificativa: A Normal com média zero e desvio padrão 10 é uma escolha padrão para coeficientes de regressão. Ela é centrada em zero (nenhum efeito a priori) e possui desvio padrão grande o suficiente para cobrir um vasto intervalo de valores plausíveis para o coeficiente e a média dos interceptos.
          2. $\tau$ e $\sigma \sim \text{HalfCauchy}(1)$:
          - Justificativa: A Half-Cauchy é ideal para parâmetros de escala (desvios padrões, que devem ser positivos). Ela é centrada em zero e é "long-tailed" (possui caudas pesadas), permitindo que os desvios padrões globais $\tau$ e $\sigma$ assumam valores grandes se os dados assim indicarem, mas concentra a maior parte da massa de probabilidade em valores menores.
 """)
@@ -346,8 +346,8 @@ def plot_posterior_direct_plotly(traco, param_name):
     )
     return fig
 
-st.write("""
-    **Distribuições A Posteriori (Posteriors)**\n
+st.info(r"""
+    **Distribuições A Posteriori (Posteriors)**
     As distribuições a posteriori são obtidas após a execução do algoritmo MCMC (Método de Monte Carlo por Cadeias de Markov) e representam o nosso conhecimento atualizado sobre os parâmetros após a observação dos dados.\n
     - $\text{Posteriori}(\mu_{\alpha}, \tau, \beta, \sigma, \alpha_j \mid Y, \text{PIB}) \propto \text{Likelihood}(\ldots) \times \text{Priors}(\ldots)$
 """)
