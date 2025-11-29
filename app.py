@@ -233,7 +233,8 @@ st.info(r"""
          - Quantificação de Incerteza: A abordagem Bayesiana fornece uma distribuição completa (Posteriori) para os parâmetros, permitindo a quantificação da incerteza nas estimativas de forma mais intuitiva do que as estatísticas frequentistas (Intervalos de Credibilidade vs. Intervalos de Confiança).
         """)
 
-st.info(r"""**Modelo Estatístico**:
+st.info(r"""
+        **Modelo Estatístico**:
         
          O modelo estatístico hierárquico é definido em dois níveis:
          Nível 1: Modelo de Dados (Likelihood)
